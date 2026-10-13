@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WorkDay 系統儀表板</title>
+    <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1126.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js/dist/amazon-cognito-identity.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f2f3f3; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .card { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); width: 90%; max-width: 500px; text-align: center; }
+        .logo { font-size: 26px; font-weight: bold; margin-bottom: 8px; color: #232f3e; }
+        .subtitle { color: #545b64; font-size: 14px; margin-bottom: 24px; }
+        
+        .dashboard-header { background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: left; border: 1px solid #eaeded; display: flex; justify-content: space-between; align-items: center;}
+        .user-email { font-weight: bold; color: #ff9900; font-size: 16px; }
+        
+        .form-group { text-align: left; margin-bottom: 15px; }
+        textarea { width: 100%; padding: 15px; border: 1px solid #aab7b8; border-radius: 6px; box-sizing: border-box; font-size: 15px; resize: vertical; min-height: 120px; font-family: inherit; margin-top: 10px;}
+        
+        .btn { display: block; width: 100%; padding: 14px; margin-top: 10px; text-align: center; border-radius: 6px; font-weight: bold; cursor: pointer; border: none; font-size: 15px; transition: all 0.2s; }
+        .btn-orange { background-color: #ff9900; color: #fff; }
+        .btn-orange:hover { background-color: #ec8e00; }
+        .btn-outline { background-color: white; color: #232f3e; border: 1px solid #d5dbdb; margin-top: 10px; }
+        .btn-outline:hover { background-color: #f8f9fa; }
+        .btn-small { padding: 8px 12px; font-size: 12px; width: auto; margin: 0; }
+        
+        .msg { font-size: 14px; margin-top: 15px; padding: 10px; border-radius: 4px; display: none; text-align: left; }
+        .msg-error { background-color: #fdf3f1; color: #d13212; border: 1px solid #d13212; display: block; }
+        .msg-success { background-color: #f1f8f3; color: #1d8102; border: 1px solid #1d8102; display: block; }
+        
+
+        #loading-screen, #unauthorized-screen { padding: 40px 20px; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="logo">WorkDay Studio</div>
+
+        <div id="loading-screen">
+            <h3 style="color: #545b64;">🔄 驗證登入狀態中...</h3>
+        </div>
+
+        <div id="unauthorized-screen" style="display: none;">
+            <h3 style="color: #d13212;">⛔ 拒絕存取</h3>
+            <p style="color: #545b64; font-size: 14px;">您尚未登入或憑證已過期，無法使用留言板功能。</p>
+            <button class="btn btn-orange" onclick="window.location.href='index.html'">返回登入頁面</button>
+        </div>
+
+
+        <div id="dashboard-screen" style="display: none;">
+            <p class="subtitle">系統儀表板 (Dashboard)</p>
+            
+            <div class="dashboard-header">
+                <div>
+                    <span style="font-size: 12px; color: #545b64;">當前登入身分：</span><br>
+                    <span class="user-email" id="display-user-email">載入中...</span>
+                </div>
+                <button class="btn btn-outline btn-small" onclick="handleLogout()">登出</button>
+            </div>
+            
+            <h3 style="color: #232f3e; text-align: left; margin-top: 0;">給作者的話</h3>
+            <p style="font-size: 13px; color: #545b64; text-align: left;">您的留言將透過 API 寫入 DynamoDB 資料庫中。</p>
+            
+            <div class="form-group">
+                <textarea id="author-message" placeholder="寫下您的回饋或挑戰心得..."></textarea>
+            </div>
+            <button class="btn btn-orange" onclick="submitMessage()" id="btn-submit">送出留言</button>
+            
+            <div id="message" class="msg"></div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        const awsConfig = {
+            UserPoolId: 'us-east-1_xxxxxxxxx', // TODO: Cognito User Pool ID
+            ClientId: 'xxxxxxxxxxxxxxxxxxxxxxxxxx', // TODO: Cognito App Client ID
+            ApiUrl: 'YOUR_LAMBDA_FUNCTION_URL' // TODO: Lambda Message API URL 
+        };
+        // ==========================================
+
+        const userPool = new AmazonCognitoIdentity.CognitoUserPool({
+            UserPoolId: awsConfig.UserPoolId,
+            ClientId: awsConfig.ClientId
+        });
+        
+        let loggedInEmail = "";
+        const msgDiv = document.getElementById('message');
+
+        function showMessage(text, type) {
+            msgDiv.innerText = text;
+            msgDiv.className = "msg " + (type === 'success' ? "msg-success" : "msg-error");
+        }
+
+        window.onload = function() {
+            const cognitoUser = userPool.getCurrentUser();
+            
+            if (cognitoUser != null) {
+                cognitoUser.getSession(function(err, session) {
+                    if (err) {
+                        showUnauthorized();
+                        return;
+                    }
+                    cognitoUser.getUserAttributes(function(err, attributes) {
+                        if (err) {
+                            showUnauthorized();
+                            return;
+                        }
+                        for (let i = 0; i < attributes.length; i++) {
+                            if (attributes[i].getName() === 'email') {
+                                loggedInEmail = attributes[i].getValue();
+                                document.getElementById('display-user-email').innerText = loggedInEmail;
+                                break;
+                            }
+                        }
+                        showDashboard();
+                    });
+                });
+            } else {
+                showUnauthorized();
+            }
+        };
+
+        function showUnauthorized() {
+            document.getElementById('loading-screen').style.display = 'none';
+            document.getElementById('unauthorized-screen').style.display = 'block';
+            document.getElementById('dashboard-screen').style.display = 'none';
+        }
+
+        function showDashboard() {
+            document.getElementById('loading-screen').style.display = 'none';
+            document.getElementById('unauthorized-screen').style.display = 'none';
+            document.getElementById('dashboard-screen').style.display = 'block';
+        }
+
+        function handleLogout() {
+            const cognitoUser = userPool.getCurrentUser();
+            if (cognitoUser != null) {
+                cognitoUser.signOut();
+            }
+            window.location.href = 'index.html'; 
+        }
+
+        async function submitMessage() {
+            if (awsConfig.ApiUrl.includes('YOUR_LAMBDA')) {
+                showMessage("❌ 錯誤：請先在原始碼填寫 API_URL", "error"); return;
+            }
+
+            const messageContent = document.getElementById('author-message').value.trim();
+            if (!messageContent) { showMessage("⚠️ 請輸入留言內容", "error"); return; }
+
+            document.getElementById('btn-submit').innerText = "傳送中...";
+            showMessage("正在寫入資料庫...", "success");
+
+            try {
+                const response = await fetch(awsConfig.ApiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: loggedInEmail,
+                        message: messageContent
+                    })
+                });
+                
+                const data = await response.json();
+
+                if (response.ok) {
+                    showMessage("✅ " + data.message, "success");
+                    document.getElementById('author-message').value = ""; 
+                } else {
+                    showMessage("❌ API 錯誤: " + data.message, "error");
+                }
+            } catch (error) {
+                console.error("Fetch Error:", error);
+                showMessage("❌ 連線失敗，請檢查 Lambda CORS 與 API URL 設定", "error");
+            } finally {
+                document.getElementById('btn-submit').innerText = "送出留言";
+            }
+        }
+    </script>
+</body>
+</html>

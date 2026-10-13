@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WorkDay Studio 應用程式</title>
+    <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1126.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js/dist/amazon-cognito-identity.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f2f3f3; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .card { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); width: 90%; max-width: 420px; text-align: center; }
+        .logo { font-size: 26px; font-weight: bold; margin-bottom: 8px; color: #232f3e; }
+        .subtitle { color: #545b64; font-size: 14px; margin-bottom: 24px; }
+
+        .tabs { display: flex; border-bottom: 2px solid #eaeded; margin-bottom: 20px; }
+        .tab { flex: 1; padding: 10px; cursor: pointer; font-weight: bold; color: #545b64; transition: 0.3s; }
+        .tab.active { color: #ff9900; border-bottom: 2px solid #ff9900; margin-bottom: -2px; }
+        
+        .form-group { text-align: left; margin-bottom: 15px; }
+        .label { display: block; font-weight: bold; margin-bottom: 8px; font-size: 14px; color: #232f3e; }
+        input[type="text"], input[type="password"] { width: 100%; padding: 12px; border: 1px solid #aab7b8; border-radius: 4px; box-sizing: border-box; font-size: 15px; }
+        
+        .btn { display: block; width: 100%; padding: 14px; margin-top: 10px; text-align: center; border-radius: 6px; font-weight: bold; cursor: pointer; border: none; font-size: 15px; transition: all 0.2s; }
+        .btn-orange { background-color: #ff9900; color: #fff; }
+        .btn-orange:hover { background-color: #ec8e00; }
+        .btn-outline { background-color: white; color: #232f3e; border: 1px solid #d5dbdb; margin-top: 10px; }
+        
+        .msg { font-size: 14px; margin-top: 15px; padding: 10px; border-radius: 4px; display: none; text-align: left; }
+        .msg-error { background-color: #fdf3f1; color: #d13212; border: 1px solid #d13212; display: block; }
+        .msg-success { background-color: #f1f8f3; color: #1d8102; border: 1px solid #1d8102; display: block; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="logo">WorkDay Studio</div>
+        <p class="subtitle" id="main-subtitle">Serverless 身分驗證大廳</p>
+
+        <div class="tabs" id="auth-tabs">
+            <div class="tab active" onclick="switchTab('login')">登入</div>
+            <div class="tab" onclick="switchTab('register')">註冊</div>
+        </div>
+
+        <div id="view-login">
+            <div class="form-group">
+                <span class="label">Email 帳號</span>
+                <input type="text" id="login-email" placeholder="輸入您的 Email">
+            </div>
+            <div class="form-group">
+                <span class="label">密碼</span>
+                <input type="password" id="login-password" placeholder="輸入密碼">
+            </div>
+            <button class="btn btn-orange" onclick="handleLogin()" id="btn-login">登入系統</button>
+        </div>
+
+        <div id="view-register" style="display: none;">
+            <div class="form-group">
+                <span class="label">設定 Email</span>
+                <input type="text" id="reg-email" placeholder="這將是您的登入帳號">
+            </div>
+            <div class="form-group">
+                <span class="label">設定密碼 (需包含大小寫與符號)</span>
+                <input type="password" id="reg-password" placeholder="例如: WDay123!">
+            </div>
+            <button class="btn btn-orange" onclick="handleRegister()" id="btn-reg">建立帳號</button>
+        </div>
+
+        <div id="view-verify" style="display: none;">
+            <h3 style="color: #232f3e; margin-top:0;">驗證您的 Email</h3>
+            <p style="font-size: 13px; color: #545b64; text-align: left;">我們已發送 6 位數驗證碼至您的信箱，請輸入以啟用帳號。</p>
+            <div class="form-group">
+                <input type="text" id="verify-code" placeholder="輸入 6 位數代碼">
+            </div>
+            <button class="btn btn-orange" onclick="handleVerify()" id="btn-verify">確認啟用</button>
+            <button class="btn btn-outline" onclick="switchTab('login')">返回登入</button>
+        </div>
+
+        <div id="message" class="msg"></div>
+    </div>
+
+    <script>
+        // ==========================================
+        const awsConfig = {
+            UserPoolId: 'us-east-1_xxxxxxxxx', // TODO: Cognito User Pool ID
+            ClientId: 'xxxxxxxxxxxxxxxxxxxxxxxxxx' // TODO: Cognito App Client ID
+        };
+        // ==========================================
+
+        const userPool = new AmazonCognitoIdentity.CognitoUserPool({
+            UserPoolId: awsConfig.UserPoolId,
+            ClientId: awsConfig.ClientId
+        });
+        let currentRegisteredEmail = ""; 
+        const msgDiv = document.getElementById('message');
+
+        function showMessage(text, type) {
+            msgDiv.innerText = text;
+            msgDiv.className = "msg " + (type === 'success' ? "msg-success" : "msg-error");
+        }
+
+        function switchTab(view) {
+            document.getElementById('view-login').style.display = view === 'login' ? 'block' : 'none';
+            document.getElementById('view-register').style.display = view === 'register' ? 'block' : 'none';
+            document.getElementById('view-verify').style.display = view === 'verify' ? 'block' : 'none';
+            
+            if (view === 'login' || view === 'register') {
+                document.getElementById('auth-tabs').style.display = 'flex';
+                document.querySelectorAll('.tab')[0].className = view === 'login' ? 'tab active' : 'tab';
+                document.querySelectorAll('.tab')[1].className = view === 'register' ? 'tab active' : 'tab';
+            } else {
+                document.getElementById('auth-tabs').style.display = 'none';
+            }
+            msgDiv.style.display = 'none';
+        }
+
+        function handleRegister() {
+            if (awsConfig.UserPoolId.includes('xxxx')) { showMessage("❌ 請先填入 Cognito 資源 ID", "error"); return; }
+            const email = document.getElementById('reg-email').value.trim();
+            const password = document.getElementById('reg-password').value;
+            if (!email || !password) { showMessage("請填寫 Email 與密碼", "error"); return; }
+
+            document.getElementById('btn-reg').innerText = "註冊中...";
+            userPool.signUp(email, password, null, null, function(err, result) {
+                document.getElementById('btn-reg').innerText = "建立帳號";
+                if (err) { showMessage("❌ 註冊失敗: " + err.message, "error"); return; }
+                currentRegisteredEmail = email;
+                switchTab('verify');
+                showMessage("✅ 註冊成功！請至信箱收取 6 位數驗證碼。", "success");
+            });
+        }
+
+        function handleVerify() {
+            const code = document.getElementById('verify-code').value.trim();
+            if (!code) { showMessage("請輸入驗證碼", "error"); return; }
+
+            const userData = { Username: currentRegisteredEmail, Pool: userPool };
+            const cognitoUser = new AmazonCognitoIdentity.CognitoUser(userData);
+
+            document.getElementById('btn-verify').innerText = "確認中...";
+            cognitoUser.confirmRegistration(code, true, function(err, result) {
+                document.getElementById('btn-verify').innerText = "確認啟用";
+                if (err) { showMessage("❌ 驗證失敗: " + err.message, "error"); return; }
+                switchTab('login');
+                document.getElementById('login-email').value = currentRegisteredEmail;
+                showMessage("✅ 帳號啟用成功！請進行登入。", "success");
+            });
+        }
+
+        function handleLogin() {
+            if (awsConfig.UserPoolId.includes('xxxx')) { showMessage("❌ 請先填入 Cognito 資源 ID", "error"); return; }
+            const email = document.getElementById('login-email').value.trim();
+            const password = document.getElementById('login-password').value;
+            if (!email || !password) { showMessage("請輸入 Email 與密碼", "error"); return; }
+
+            const authenticationDetails = new AmazonCognitoIdentity.AuthenticationDetails({ Username: email, Password: password });
+            const cognitoUser = new AmazonCognitoIdentity.CognitoUser({ Username: email, Pool: userPool });
+
+            document.getElementById('btn-login').innerText = "登入中...";
+
+            cognitoUser.authenticateUser(authenticationDetails, {
+                onSuccess: function (result) {
+                    window.location.href = "main.html";
+                },
+                onFailure: function(err) {
+                    document.getElementById('btn-login').innerText = "登入系統";
+                    if (err.message.includes('User is not confirmed')) {
+                        currentRegisteredEmail = email;
+                        switchTab('verify');
+                        showMessage("⚠️ 您的帳號尚未驗證，請輸入信箱中的代碼。", "error");
+                    } else {
+                        showMessage("❌ 登入失敗: " + err.message, "error");
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
