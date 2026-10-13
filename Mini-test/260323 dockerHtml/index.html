@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的 Docker 測試網頁</title>
+    <style>
+        /* CSS 樣式 - 美化網頁 */
+        :root {
+            --primary-color: #007bff;
+            --background-color: #f4f7f6;
+            --text-color: #333;
+            --card-background: #fff;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            background-color: var(--card-background);
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 400px;
+            width: 100%;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+        }
+
+        p {
+            margin-bottom: 1.5rem;
+            color: #666;
+        }
+
+        .status-box {
+            background-color: #e9ecef;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            border: 1px solid #ddd;
+        }
+
+        #status-text {
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        footer {
+            margin-top: 2rem;
+            font-size: 0.8rem;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>👋 你好！Docker</h1>
+        <p>這是一個用來測試 Docker 打包的簡單網頁。</p>
+        
+        <div class="status-box">
+            <div>當前狀態：</div>
+            <div id="status-text">載入中...</div>
+        </div>
+
+        <button id="action-btn">點擊測試 JavaScript</button>
+
+        <footer>
+            由 Docker 容器提供服務
+        </footer>
+    </div>
+
+    <script>
+        /* JavaScript - 增加互動 */
+        document.addEventListener('DOMContentLoaded', () => {
+            const statusText = document.getElementById('status-text');
+            const actionBtn = document.getElementById('action-btn');
+
+            // 1. 初始化狀態
+            statusText.innerText = "✅ 網頁已成功開啟";
+            statusText.style.color = "#28a745"; // 綠色
+
+            // 2. 按鈕點擊事件
+            actionBtn.addEventListener('click', () => {
+                alert('JavaScript 運作正常！你是 Docker 大師！🐳');
+                statusText.innerText = "🎉 已點擊按鈕！";
+                statusText.style.color = "#ffc107"; // 黃色
+            });
+        });
+    </script>
+</body>
+</html>
