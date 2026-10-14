@@ -1,0 +1,62 @@
+{
+  "Comment": "使用 And 複合條件的 Choice 範例",
+  "StartAt": "ApplyCoupon",
+  "States": {
+    "ApplyCoupon": {
+      "Type": "Pass",
+      "Result": {
+        "discount_amount": 500
+      },
+      "ResultPath": "$.coupon_info",
+      "Next": "EvaluateShipping"
+    },
+    "EvaluateShipping": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Next": "SuperVipShipping",
+          "And": [
+            {
+              "Variable": "$.use_coupon",
+              "BooleanEquals": true
+            },
+            {
+              "Variable": "$.cart_total",
+              "NumericGreaterThanEquals": 5000
+            }
+          ]
+        },
+        {
+          "Next": "StandardShipping",
+          "Variable": "$.cart_total",
+          "NumericGreaterThanEquals": 2000
+        }
+      ],
+      "Default": "SelfPickup"
+    },
+    "SuperVipShipping": {
+      "Type": "Pass",
+      "ResultPath": "$.shipping",
+      "Result": {
+        "shipping_type": "✈️ 專機免運直達"
+      },
+      "End": true
+    },
+    "StandardShipping": {
+      "Type": "Pass",
+      "ResultPath": "$.shipping",
+      "Result": {
+        "shipping_type": "🚚 陸運超商配送"
+      },
+      "End": true
+    },
+    "SelfPickup": {
+      "Type": "Pass",
+      "ResultPath": "$.shipping",
+      "Result": {
+        "shipping_type": "🏪 門市自行取貨"
+      },
+      "End": true
+    }
+  }
+}

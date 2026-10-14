@@ -1,0 +1,5 @@
+FROM python:alpine
+WORKDIR /app
+COPY . .
+EXPOSE 80
+CMD [ "python", "server-binary.pyc" ]

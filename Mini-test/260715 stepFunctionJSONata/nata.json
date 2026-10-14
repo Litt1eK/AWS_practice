@@ -1,0 +1,41 @@
+{
+  "Comment": "A description of my state machine",
+  "StartAt": "ApplyCoupon",
+  "States": {
+    "ApplyCoupon": {
+      "Type": "Pass",
+      "Output": "{% $merge([ $states.input,{ 'notification': $states.input.product & '商品' & $states.input.status}])%}",
+      "Next": "EvaluateShipping"
+    },
+    "EvaluateShipping": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Next": "SuperVipShipping",
+          "Condition": "{% $states.input.price >= 5000 and $states.input.use_coupon = true %}"
+        },
+        {
+          "Next": "StandardShipping",
+          "Condition": "{% $states.input.price >= 2000 %}"
+        }
+      ],
+      "Default": "SelfPickup"
+    },
+    "SuperVipShipping": {
+      "Type": "Pass",
+      "End": true,
+      "Output": "{% $states.input.product & '很貴' & $states.input.price %}"
+    },
+    "StandardShipping": {
+      "Type": "Pass",
+      "End": true,
+      "Output": "{% $states.input.product & '很一般' & $states.input.price %}"
+    },
+    "SelfPickup": {
+      "Type": "Pass",
+      "End": true,
+      "Output": "{% $states.input.product & '很便宜' & $states.input.price %}"
+    }
+  },
+  "QueryLanguage": "JSONata"
+}
